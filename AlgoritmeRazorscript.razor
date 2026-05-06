@@ -1,0 +1,339 @@
+﻿@page "/MyMeasurements"
+@attribute [StreamRendering]
+@rendermode InteractiveServer
+@inject IMeasurementRepository measurementRepository;
+@using ApexCharts
+@inject IJSRuntime JS
+<PageTitle>My measurements  </PageTitle>
+
+<h1 class="h1 mb-5 mt-3  "> <i class="bi bi-graph-up"></i> My measurements </h1>
+<h2 class="h3 mb-5 mt-3  ">Name: Abdullah Al Kathiry </h2>
+<blockquote class="blockquote mb-5">
+    <h4 style="font-size: 20px;" class="h4 mb-2 mt-3  ">Beschrijving van het algoritme: </h4>
+    <p style="font-size: 14px;">Op dit webpagina kun je het gasverbruik en het aantal graaddagen per dag analyseren voor bepaalde dagen. 
+        Graaddagen geven inzicht in hoeveel dagen er kouder waren dan de basistemperatuur van 18°C. Voor elke dag wordt het 
+        gasverbruik berekend door de meterstanden van opeenvolgende dagen te vergelijken. Zo ontstaat een overzicht van het 
+        dagelijkse en totale gasverbruik, maar ook van het verbruik per graaddag. Door temperatuurverschillen mee te nemen, 
+        geeft de analyse een beeld van het energieverbruik en de efficiëntie van de verwarming over de gekozen periode.</p>
+
+</blockquote>
+
+
+
+<div class="container d-flex justify-content-center align-items-center  ">
+
+    <div class="form-inline d-flex align-items-center my-2 gap-3">
+ 
+        <label for="dataInput"  style="font-size: 20px;">
+            How many days would you like to analyze?
+        </label>
+
+        <InputText style="width: 200px;" id="dataInput" class="form-control px-2" @bind-Value="inputDataDays" placeholder="Days" />
+
+        <InputText style="width: 200px;" id="dataInput" class="form-control px-1" placeholder="home id" @bind-Value="inputDataHouseId" />
+
+        <button style="width: 100px;" class="btn btn-success  px-1" @onclick="SaveData">Analyse</button>
+    </div>
+
+</div>
+
+
+
+@if (measurements == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <!--
+        When the measurements variable has values in it we will draw a table with a header (thead) and
+        add the data to the table (tbody). We use the foreach to loop over te list of measurements and
+        a single line <tr> is added for each of the indivudial measurement objects. Colums are seperated
+        using <th> for the header or <td> for the body as you can see in the code below.
+    -->
+
+
+     
+     
+    //Display chart
+
+    <DemoContainer>
+    <div class="container">
+        <div class="row">
+            <!-- Column Chart and Results -->
+            <div class="col-md-6">
+
+                <div class="card text-white bg-success mt-5 mb-5" style="max-width: 600px;">
+                    <div class="card-header">
+                        <div class="card-body">
+                            <h5 class="card-title text-center">
+                                This is the analysis of home <i class="bi bi-house-door"></i> : @savedDataHouseId for @savedDataDays days
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="width: 100%;">
+                    <ApexChart TItem="GasConsumptionData"
+                               @ref="chart"
+                               Title="The total gas value"
+                               Options="options">
+                        <ApexPointSeries TItem="GasConsumptionData"
+                                         Items="gasConsumptionPerDay"
+                                         Name="Total Gas Consumption m³"
+                                         SeriesType="SeriesType.Line"
+                                         XValue="@(e => e.Timestamp.ToString("yyyy/MM/dd"))"
+                                         YAggregate="@(e => e.Sum(e => Convert.ToDecimal(e.GasConsumption)))"
+                                         OrderByDescending="e => e.Y" />
+                        
+                        <ApexPointSeries TItem="GasConsumptionData"
+                                         Items="gasConsumptionPerDay"
+                                         Name="Temperature"
+                                         SeriesType="SeriesType.Line"
+                                         XValue="@(e => e.Timestamp.ToString("yyyy/MM/dd"))"
+                                         YAggregate="@(e => e.Sum(e => Convert.ToDecimal(e.Temp)))"
+                                         OrderByDescending="e => e.Y" />
+                    </ApexChart>
+                </div>
+                   
+                <div style="font-size: 15px;" class="card m-4 mb-5">
+                    <div class="card-header"><i class="bi bi-clipboard2-data-fill"></i> Results :   </div>
+                   
+                      <ul class="list-group list-group-flush">
+                        <li class="list-group-item"><i class="bi bi-speedometer"></i>      Total gas consumption :  @totalGasConsumption m³</li>
+                        <li class="list-group-item"><i class="bi bi-thermometer-half"></i> Total degree days :      @totalDayDegrees</li>
+                        <li class="list-group-item"><i class="bi bi-calculator-fill"></i>  Gas consumption per degree day :  @gasPerDayDegree m³/degree day</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Column   Table -->
+            <div class="col-md-6 mt-5">
+                <table style="font-size: 15px;"  class="table table-bordered border-success  ">
+                    <thead>
+                        <tr class=" ">
+                            <th>Timestamp (UTC)</th>
+                            <th>Gas meter</th>
+                            <th>Gas consumption</th>
+                            <th>Temperature</th>
+                            <th>Day degree</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (GasConsumptionData item in gasConsumptionPerDay)
+                        {
+                            <tr>
+                                <td>@item.Timestamp.ToString("yyyy/MM/dd")</td>
+                                <td>@item.Value m³</td>
+                                @if (@item.Timestamp.Day == DateTime.Now.Day){
+                                    <td>@item.GasConsumption m³ Until now</td>
+                                }
+                                else{
+                                    <td>@item.GasConsumption m³</td>
+                                }
+                                <td>@item.Temp °C</td>
+                                <td>@item.DayDegree</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</DemoContainer>
+
+}
+
+@code {
+
+    int houseId = 15433910;
+
+
+    private ApexChartOptions<GasConsumptionData> options { get; set; } = new();
+    private ApexChart<GasConsumptionData> chart;
+
+    public class GasConsumptionData
+    {
+        public DateTime Timestamp { get; set; }
+        public double Value { get; set; }
+        public double GasConsumption { get; set; }
+        public double Temp { get; set; }
+        public double DayDegree { get; set; }
+
+
+    }
+
+    private List<Measurement>? measurements;
+
+
+    // Here we save the data to get the total degree days and the gas consumption per degree day.
+    double totalDayDegrees      = 0;
+
+    double totalGasConsumption  = 0;
+    double gasPerDayDegree      = 0;
+
+    // In gasConsumptionPerDay was save the gas consumption per day after we calculate the gas of a day  
+    // by subtracting the gas value at the start of the day
+    // from the gas value at the start of the next day.
+    private List<GasConsumptionData> gasConsumptionPerDay = new();
+
+
+
+
+    private string inputDataDays { get; set; }      = string.Empty; // Holds the current input
+    private string inputDataHouseId { get; set; }   = string.Empty;
+    private int savedDataDays { get; set; }         = 5; // Holds the saved data
+    private int savedDataHouseId { get; set; }      = 15433910;
+
+    private async Task SaveData()
+    {
+
+        if (!string.IsNullOrEmpty(inputDataDays))
+        {
+            savedDataDays       = Convert.ToInt32(inputDataDays); // Save the current input to display
+        }
+        else
+        {
+            savedDataDays = savedDataDays;
+        }
+
+        if (!string.IsNullOrEmpty(inputDataHouseId) )
+        {
+            savedDataHouseId    = Convert.ToInt32(inputDataHouseId);
+        }
+        else
+        {
+            savedDataHouseId = savedDataHouseId;
+        }
+
+        await LoadDataAsync();
+        await ConfigureChartOptions();
+        await chart.UpdateOptionsAsync(  true, true , true) ;
+
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+        await ConfigureChartOptions();
+    }
+
+
+
+    protected async Task LoadDataAsync()
+    {
+
+        int meterId = savedDataHouseId;
+
+
+        int numberOfDays = Convert.ToInt32(savedDataDays) + 1;
+
+
+        string aggegationWindow = "1d";
+
+        //Requesting gas data
+        measurements = await this.measurementRepository.GetGasDelivered(meterId, numberOfDays, aggegationWindow);
+
+
+        //Reseting the variables for every new calculation
+        totalDayDegrees     = 0;
+        totalGasConsumption = 0;
+        gasPerDayDegree     = 0;
+        gasConsumptionPerDay.Clear();
+
+
+
+        // These variables store the initial data for the first day. 
+        // In the next iteration, they will be used to calculate the daily gas consumption 
+        // by subtracting the first day's gas data from the next day's starting gas data.
+
+        //     Example :
+        //     day 1: 22/10/2024 00:00:00, gas value = 1582,402
+        //     day 2: 23/10/2024 00:00:00, gas value = 1589,405
+        //     day 1 gas consumption = gas-value-of-day2 - gas-value-of-day1. which is = 7,003 m3
+
+        double previousGasValue = 0;
+        DateTime previousTimestamp  = DateTime.Now;
+        double previousDayDegree    = 0;
+        double previousTemperature  = 0;
+
+        foreach (var measurement in measurements)
+        {
+            GasConsumptionData dailyData = new GasConsumptionData();
+            //dates.Add(measurement.Timestamp);
+
+            if (previousGasValue != 0 )
+            {
+
+                //Calculate the daily gas consumption by subtracting the previous day value from the next day value
+                double dailyGasConsumption = Convert.ToDouble(measurement.Value) - previousGasValue;
+
+
+                dailyData.GasConsumption    = Math.Round(dailyGasConsumption, 2);
+                dailyData.Value             = previousGasValue;
+                dailyData.Timestamp         = previousTimestamp;
+                dailyData.DayDegree         = previousDayDegree;
+                dailyData.Temp              = previousTemperature;
+
+                // Accumulate totals for gas consumption and day degrees
+                totalGasConsumption += dailyData.GasConsumption;
+                totalDayDegrees     += dailyData.DayDegree;
+
+                // Add the computed daily data to the gas consumption list to display the data in the table and in the charts
+                gasConsumptionPerDay.Add(dailyData);
+            }
+
+            // Update previous values for the next iteration
+            previousTemperature = Convert.ToDouble(measurement.Temperature);
+            previousDayDegree   = Math.Round(18 - Convert.ToDouble(measurement.Temperature), 2);
+
+            if (previousDayDegree < 0)
+            {
+                previousDayDegree = 0;
+            }
+
+            //I used grafana.sendlab.nl to test my results, and it shows the same results as mine but with a timestamp that is one day earlier
+            // This is why I need to add the previous day's timestamp in my algorithm so both results match
+            previousTimestamp   = measurement.Timestamp.AddDays(-1);
+            previousGasValue    = Convert.ToDouble(measurement.Value);
+        }
+
+        gasPerDayDegree     = Convert.ToDouble(totalGasConsumption / totalDayDegrees);
+        totalDayDegrees     = Math.Round(totalDayDegrees, 2);
+        totalGasConsumption = Math.Round(totalGasConsumption, 2);
+        gasPerDayDegree     = Math.Round(gasPerDayDegree, 2);
+
+    }
+
+
+
+
+
+
+    //Charts code
+
+    private async Task ConfigureChartOptions()
+    {
+        options = new ApexChartOptions<GasConsumptionData>
+            {
+                Markers = new Markers
+                {
+                    Discrete = new List<MarkersDiscrete>
+                {
+                    new MarkersDiscrete
+                    {
+                        SeriesIndex = 0,
+                        DataPointIndex = 2,
+                        Size = 10,
+                        FillColor = "#F30707"
+                    }
+                }
+                }
+            };
+    }
+
+}
+
+
+ 
